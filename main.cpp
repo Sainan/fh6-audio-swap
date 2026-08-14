@@ -241,9 +241,12 @@ int main(int argc, const char* argv[])
 				lookup3::hash64(str + "_" + game_lang)
 			);
 		}
+		strings = std::unordered_set<std::string>(); // no longer needed, free memory
 
-		std::error_code ec;
-		std::filesystem::create_directory(path / "SchwapBackups", ec);
+		{
+			std::error_code ec;
+			std::filesystem::create_directory(path / "SchwapBackups", ec);
+		}
 		for (const auto& e : std::filesystem::directory_iterator(path))
 		{
 			if (e.is_regular_file())
@@ -258,12 +261,14 @@ int main(int argc, const char* argv[])
 
 					// Read bank file
 					FileReader fr(e.path());
-					RiffReader rr(fr);
-					auto ck = rr.readChunk();
-					if (!seek_sound_table(rr, ck.getDataEnd()))
 					{
-						std::cout << "\tCouldn't locate sound table, skipping\n";
-						continue;
+						RiffReader rr(fr);
+						auto ck = rr.readChunk();
+						if (!seek_sound_table(rr, ck.getDataEnd()))
+						{
+							std::cout << "\tCouldn't locate sound table, skipping\n";
+							continue;
+						}
 					}
 					fr.skip(8);
 					const auto st_offset = fr.getPosition();
@@ -277,28 +282,30 @@ int main(int argc, const char* argv[])
 					const auto rest_size = fr.getRemainingBytes();
 
 					// Replace keys
-					size_t replaced = 0;
-					size_t unknowns = 0;
-					for (auto& e : st.vec)
 					{
-						if (auto r = map.find(e.first); r != map.end())
+						size_t replaced = 0;
+						size_t unknowns = 0;
+						for (auto& e : st.vec)
 						{
-							//std::cout << "\t" << e.first << " -> " << r->second << "\n";
-							e.first = r->second;
-							++replaced;
+							if (auto r = map.find(e.first); r != map.end())
+							{
+								//std::cout << "\t" << e.first << " -> " << r->second << "\n";
+								e.first = r->second;
+								++replaced;
+							}
+							else
+							{
+								//std::cout << "\tunknown hash: " << e.first << "\n";
+								++unknowns;
+							}
 						}
-						else
+						std::cout << "\t" << replaced << " samples replaced";
+						if (unknowns != 0)
 						{
-							//std::cout << "\tunknown hash: " << e.first << "\n";
-							++unknowns;
+							std::cout << "; " << unknowns << " unknowns left dangling";
 						}
+						std::cout << "\n";
 					}
-					std::cout << "\t" << replaced << " samples replaced";
-					if (unknowns != 0)
-					{
-						std::cout << "; " << unknowns << " unknowns left dangling";
-					}
-					std::cout << "\n";
 
 					// Re-sort sound table to keep binary search working
 					std::sort(st.vec.begin(), st.vec.end(), [](const std::pair<uint64_t, uint32_t>& a, const std::pair<uint64_t, uint32_t>& b)
