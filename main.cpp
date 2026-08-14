@@ -260,26 +260,29 @@ int main(int argc, const char* argv[])
 					std::cout << "Processing " << bank_name << "...\n";
 
 					// Read bank file
-					FileReader fr(e.path());
+					SoundTable st;
+					size_t st_offset, rest_offset, rest_size;
 					{
-						RiffReader rr(fr);
-						auto ck = rr.readChunk();
-						if (!seek_sound_table(rr, ck.getDataEnd()))
+						FileReader fr(e.path());
 						{
-							std::cout << "\tCouldn't locate sound table, skipping\n";
+							RiffReader rr(fr);
+							auto ck = rr.readChunk();
+							if (!seek_sound_table(rr, ck.getDataEnd()))
+							{
+								std::cout << "\tCouldn't locate sound table, skipping\n";
+								continue;
+							}
+						}
+						fr.skip(8);
+						st_offset = fr.getPosition();
+						if (!st.read(fr))
+						{
+							std::cout << "\tCouldn't read sound table, skipping\n";
 							continue;
 						}
+						rest_offset = fr.getPosition();
+						rest_size = fr.getRemainingBytes();
 					}
-					fr.skip(8);
-					const auto st_offset = fr.getPosition();
-					SoundTable st;
-					if (!st.read(fr))
-					{
-						std::cout << "\tCouldn't read sound table, skipping\n";
-						continue;
-					}
-					const auto rest_offset = fr.getPosition();
-					const auto rest_size = fr.getRemainingBytes();
 
 					// Replace keys
 					{
@@ -317,15 +320,17 @@ int main(int argc, const char* argv[])
 					std::filesystem::rename(dest_file, path / "SchwapBackups" / (bank_name + "_" + game_lang + ".assets.bank - original"));
 					{
 						FileWriter fw(dest_file);
-						std::string buf;
-						fr.seekBegin();
-						fr.str(st_offset, buf); fw.str(st_offset, buf);
-						st.write(fw);
-						fr.seek(rest_offset);
-						fr.str(rest_size, buf); fw.str(rest_size, buf);
+						size_t size;
+						if (const void* data = filesystem::createFileMapping(e.path(), size))
+						{
+							fw.raw((void*)data, st_offset);
+							st.write(fw);
+							fw.raw((char*)data + rest_offset, rest_size);
+
+							filesystem::destroyFileMapping(data, size);
+						}
 					}
 					string::toFile(path / "SchwapBackups" / (bank_name + "_" + game_lang + ".assets.bank - replacement sha1"), sha1_file(dest_file));
-
 				}
 			}
 		}
