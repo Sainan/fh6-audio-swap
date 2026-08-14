@@ -1,0 +1,1 @@
+Schwap.exe EN JP
