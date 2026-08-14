@@ -157,40 +157,43 @@ int main(int argc, const char* argv[])
 		return 2;
 	}
 
-	// Build string map for hashes
-	std::cout << "Indexing...\n";
 	std::unordered_set<std::string> strings;
-	for (const auto& e : std::filesystem::directory_iterator(path))
+	if (!audio_lang.empty()) // Replace mode?
 	{
-		if (e.is_regular_file())
+		// Build string map for hashes
+		std::cout << "Indexing...\n";
+		for (const auto& e : std::filesystem::directory_iterator(path))
 		{
-			const std::string filename = unicode::utf16_to_utf8(e.path().filename().u16string());
-			std::string pattern;
-			if (filename.starts_with("Dialogue_") || filename == "DialogueScript.xml")
+			if (e.is_regular_file())
 			{
-				pattern = R"EOR(\/(HZ6_.+?)")EOR";
-			}
-			else if (filename == "RadioInfo_EN.xml")
-			{
-				pattern = R"EOR("(HZ6_.+?)_EN")EOR";
-			}
-			else if (filename == "SatNavConfig.xml")
-			{
-				pattern = R"EOR("(HZ6_.+?)")EOR";
-			}
-			else
-			{
-				continue;
-			}
-			std::string str = string::fromFile(e.path());
-			Regex r(pattern);
-			size_t i = 0;
-			RegexMatchResult m;
-			while (m = r.search(&str.data()[i], &str.data()[str.size()]), m.isSuccess())
-			{
-				const size_t offset = (m.groups.at(0).value().begin - str.data());
-				strings.emplace(m.groups.at(1).value().toString());
-				i = offset + m.length();
+				const std::string filename = unicode::utf16_to_utf8(e.path().filename().u16string());
+				std::string pattern;
+				if (filename.starts_with("Dialogue_") || filename == "DialogueScript.xml")
+				{
+					pattern = R"EOR(\/(HZ6_.+?)")EOR";
+				}
+				else if (filename == "RadioInfo_EN.xml")
+				{
+					pattern = R"EOR("(HZ6_.+?)_EN")EOR";
+				}
+				else if (filename == "SatNavConfig.xml")
+				{
+					pattern = R"EOR("(HZ6_.+?)")EOR";
+				}
+				else
+				{
+					continue;
+				}
+				std::string str = string::fromFile(e.path());
+				Regex r(pattern);
+				size_t i = 0;
+				RegexMatchResult m;
+				while (m = r.search(&str.data()[i], &str.data()[str.size()]), m.isSuccess())
+				{
+					const size_t offset = (m.groups.at(0).value().begin - str.data());
+					strings.emplace(m.groups.at(1).value().toString());
+					i = offset + m.length();
+				}
 			}
 		}
 	}
